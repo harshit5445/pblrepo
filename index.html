@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon Cyber Threat Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #00f7ff;
+      --secondary: #ff2a6d;
+      --bg-dark: #0a0e17;
+      --bg-light: #101a2e;
+      --text: #d1f7ff;
+      --text-dim: #8ba3b8;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Roboto Mono', monospace;
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 1rem;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      background: var(--bg-light);
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0, 247, 255, 0.1);
+      border: 1px solid rgba(0, 247, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+    
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--primary);
+      margin-bottom: 1rem;
+      font-size: 2rem;
+      text-shadow: 0 0 10px rgba(0, 247, 255, 0.3);
+      letter-spacing: 1px;
+    }
+    
+    .subtitle {
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+      font-size: 1rem;
+    }
+    
+    .upload-section {
+      background: rgba(0, 247, 255, 0.05);
+      border: 2px dashed rgba(0, 247, 255, 0.3);
+      border-radius: 8px;
+      padding: 1.5rem;
+      text-align: center;
+      margin-bottom: 2rem;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .upload-section:hover {
+      border-color: var(--primary);
+      background: rgba(0, 247, 255, 0.1);
+    }
+    
+    .upload-section label {
+      display: block;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      color: var(--primary);
+      cursor: pointer;
+    }
+    
+    .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.8rem;
+      color: var(--primary);
+    }
+    
+    #fileInput {
+      display: none;
+    }
+    
+    .file-name {
+      margin-top: 0.8rem;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+    
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      .container {
+        padding: 1rem;
+      }
+      h1 {
+        font-size: 1.8rem;
+      }
+    }
+    
+    .chart-container {
+      background: rgba(16, 26, 46, 0.7);
+      border-radius: 8px;
+      padding: 1.2rem;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(0, 247, 255, 0.1);
+      transition: transform 0.3s ease;
+    }
+    
+    .chart-container:hover {
+      transform: translateY(-3px);
+    }
+    
+    .chart-title {
+      color: var(--primary);
+      margin-bottom: 0.8rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+    }
+    
+    .chart-title svg {
+      margin-right: 0.5rem;
+    }
+    
+    canvas {
+      width: 100% !important;
+      height: 250px !important;
+    }
+    
+    #tableContainer {
+      margin-bottom: 2rem;
+      overflow-x: auto;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(16, 26, 46, 0.7);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 0.9rem;
+    }
+    
+    th {
+      background: rgba(0, 247, 255, 0.1);
+      color: var(--primary);
+      padding: 0.8rem;
+      text-align: left;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 1px;
+      position: sticky;
+      top: 0;
+    }
+    
+    td {
+      padding: 0.6rem 0.8rem;
+      border-bottom: 1px solid rgba(0, 247, 255, 0.1);
+    }
+    
+    tr:hover td {
+      background: rgba(0, 247, 255, 0.05);
+    }
+    
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.7rem 1.3rem;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: var(--bg-dark);
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      margin-top: 1.5rem;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 247, 255, 0.3);
+      border: none;
+      cursor: pointer;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.9rem;
+    }
+    
+    .download-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 247, 255, 0.4);
+    }
+    
+    .download-btn svg {
+      margin-right: 0.5rem;
+    }
+    
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 247, 255, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(0, 247, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 247, 255, 0); }
+    }
+    
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .stat-card {
+      background: rgba(16, 26, 46, 0.7);
+      border-radius: 8px;
+      padding: 1.2rem;
+      text-align: center;
+      border-left: 4px solid var(--primary);
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--primary);
+      margin: 0.4rem 0;
+      font-family: 'Orbitron', sans-serif;
+    }
+    
+    .stat-label {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+    
+    .alert {
+      padding: 0.8rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      display: none;
+      font-size: 0.9rem;
+    }
+    
+    .alert-danger {
+      background: rgba(255, 42, 109, 0.1);
+      border-left: 4px solid var(--secondary);
+      color: var(--secondary);
+    }
+    
+    .cyber-border {
+      position: relative;
+    }
+    
+    .cyber-border::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 1rem 0;
+      color: var(--primary);
+    }
+    
+    .spinner {
+      border: 3px solid rgba(0, 247, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid var(--primary);
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-right: 0.5rem;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .prediction-result {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: rgba(0, 247, 255, 0.05);
+      border-radius: 8px;
+      border-left: 4px solid var(--primary);
+      display: none;
+    }
+    
+    .prediction-title {
+      color: var(--primary);
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    
+    .prediction-text {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CYBER THREAT DASHBOARD</h1>
+    <p class="subtitle">AI-Powered Network Security Analytics Platform</p>
+    
+    <div class="upload-section pulse" id="uploadArea">
+      <div class="upload-icon">🛡</div>
+      <label for="fileInput">UPLOAD THREAT DATA</label>
+      <input type="file" id="fileInput" accept=".csv,.json">
+      <p>Drag & drop your CSV/JSON file or click to browse</p>
+      <div class="file-name" id="fileName"></div>
+    </div>
+    
+    <div class="prediction-section" style="display: none;">
+      <h3>REAL-TIME THREAT PREDICTION</h3>
+      <textarea id="predictionInput" placeholder="Enter request to analyze..." rows="3" style="width: 100%; padding: 0.5rem; background: rgba(0, 247, 255, 0.05); border: 1px solid rgba(0, 247, 255, 0.3); color: var(--text); border-radius: 4px;"></textarea>
+      <button id="predictBtn" class="download-btn" style="margin-top: 0.5rem;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        ANALYZE REQUEST
+      </button>
+      <div class="prediction-result" id="predictionResult">
+        <div class="prediction-title">PREDICTION RESULT</div>
+        <div class="prediction-text" id="predictionText"></div>
+      </div>
+    </div>
+    
+    <div id="alertBox" class="alert alert-danger" style="display: none;"></div>
+    
+    <div class="loading" id="loadingIndicator">
+      <div class="spinner"></div> Processing data...
+    </div>
+    
+    <div class="stats-bar" id="statsBar" style="display: none;">
+      <div class="stat-card">
+        <div class="stat-label">TOTAL THREATS</div>
+        <div class="stat-value" id="totalThreats">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">THREAT TYPES</div>
+        <div class="stat-value" id="threatTypes">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">TIME SPAN</div>
+        <div class="stat-value" id="timeSpan">0d</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">LAST DETECTED</div>
+        <div class="stat-value" id="lastDetected">-</div>
+      </div>
+    </div>
+    
+    <div id="tableContainer"></div>
+    
+    <div class="dashboard-grid">
+      <div class="chart-container cyber-border">
+        <div class="chart-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20V10M18 20V4M6 20v-4"></path>
+          </svg>
+          THREAT TYPE DISTRIBUTION
+        </div>
+        <canvas id="barChart" width="400" height="300"></canvas>
+      </div>
+      
+      <div class="chart-container cyber-border">
+        <div class="chart-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+          </svg>
+          THREAT ACTIVITY TIMELINE
+        </div>
+        <canvas id="lineChart" width="400" height="300"></canvas>
+      </div>
+    </div>
+    
+    <button id="downloadLink" class="download-btn" style="display: none;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      EXPORT THREAT REPORT
+    </button>
+  </div>
+
+  <script>
+    // Chart instances storage
+    let barChart = null;
+    let lineChart = null;
+    let currentData = null;
+    let model = null;
+    let vectorizer = null;
+
+    // DOM elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const alertBox = document.getElementById('alertBox');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const statsBar = document.getElementById('statsBar');
+    const downloadLink = document.getElementById('downloadLink');
+    const predictionSection = document.querySelector('.prediction-section');
+    const predictBtn = document.getElementById('predictBtn');
+    const predictionResult = document.getElementById('predictionResult');
+    const predictionText = document.getElementById('predictionText');
+
+    // Initialize drag and drop
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFileUpload();
+      }
+    });
+
+    fileInput.addEventListener('change', handleFileUpload);
+
+    // Load ML model (in a real app, this would be an API call)
+    async function loadModel() {
+      try {
+        // In a real implementation, you would fetch the model from an API
+        // This is a placeholder for the actual model loading logic
+        console.log("Loading ML model...");
+        // model = await loadModelFromAPI();
+        // vectorizer = await loadVectorizerFromAPI();
+        document.querySelector('.prediction-section').style.display = 'block';
+      } catch (error) {
+        showAlert("Failed to load prediction model: " + error.message);
+      }
+    }
+
+    // Handle file upload
+    function handleFileUpload() {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      fileName.textContent = `Selected: ${file.name}`;
+      uploadArea.classList.remove('pulse');
+      loadingIndicator.style.display = 'block';
+      statsBar.style.display = 'none';
+      downloadLink.style.display = 'none';
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          if (file.name.endsWith('.csv')) {
+            parseCSV(e.target.result);
+          } else if (file.name.endsWith('.json')) {
+            parseJSON(e.target.result);
+          } else {
+            throw new Error('Unsupported file format. Please upload a CSV or JSON file.');
+          }
+        } catch (error) {
+          showAlert(error.message);
+          loadingIndicator.style.display = 'none';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Parse CSV data
+    function parseCSV(csvText) {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          if (results.errors.length > 0) {
+            throw new Error("CSV parsing errors: " + results.errors.map(e => e.message).join(', '));
+          }
+          processData(results.data);
+        },
+        error: function(error) {
+          throw new Error("CSV parsing failed: " + error.message);
+        }
+      });
+    }
+
+    // Parse JSON data
+    function parseJSON(jsonText) {
+      try {
+        const data = JSON.parse(jsonText);
+        if (!Array.isArray(data)) {
+          throw new Error("JSON data should be an array of objects");
+        }
+        processData(data);
+      } catch (error) {
+        throw new Error("JSON parsing failed: " + error.message);
+      }
+    }
+
+    // Process and visualize data
+    function processData(data) {
+      if (!data || data.length === 0) {
+        throw new Error("No valid data found in the file");
+      }
+
+      currentData = data;
+      
+      // Update stats
+      updateStats(data);
+      
+      // Update table
+      updateTable(data);
+      
+      // Create charts
+      createCharts(data);
+      
+      // Show download button
+      downloadLink.style.display = 'inline-flex';
+      loadingIndicator.style.display = 'none';
+      statsBar.style.display = 'grid';
+      
+      // Load ML model when data is ready
+      loadModel();
+    }
+
+    // Update statistics
+    function updateStats(data) {
+      const threatCounts = countByThreat(data);
+      const dateCounts = groupByDate(data);
+      const dates = Object.keys(dateCounts).sort();
+      
+      document.getElementById('totalThreats').textContent = data.length;
+      document.getElementById('threatTypes').textContent = Object.keys(threatCounts).length;
+      
+      if (dates.length > 1) {
+        const firstDate = new Date(dates[0]);
+        const lastDate = new Date(dates[dates.length - 1]);
+        const diffTime = Math.abs(lastDate - firstDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        document.getElementById('timeSpan').textContent = `${diffDays}d`;
+      } else {
+        document.getElementById('timeSpan').textContent = '1d';
+      }
+      
+      document.getElementById('lastDetected').textContent = dates[dates.length - 1] || '-';
+    }
+
+    // Group data by date
+    function groupByDate(data) {
+      const count = {};
+      data.forEach(row => {
+        try {
+          if (row.timestamp) {
+            const date = new Date(row.timestamp).toISOString().split('T')[0];
+            count[date] = (count[date] || 0) + 1;
+          }
+        } catch (e) {
+          console.warn("Invalid timestamp format:", row.timestamp);
+        }
+      });
+      return count;
+    }
+
+    // Count by threat type
+    function countByThreat(data) {
+      const count = {};
+      data.forEach(row => {
+        const threat = row.threat || "Unknown";
+        count[threat] = (count[threat] || 0) + 1;
+      });
+      return count;
+    }
+
+    // Update table view
+    function updateTable(data) {
+      const container = document.getElementById("tableContainer");
+      if (!data || !data.length) return;
+      
+      const headers = Object.keys(data[0]);
+      let html = `
+        <table>
+          <thead>
+            <tr>${headers.map(h => `<th>${h.toUpperCase()}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+      `;
+      
+      data.slice(0, 100).forEach(row => {
+        html += `<tr>${headers.map(h => `<td>${row[h] || '-'}</td>`).join("")}</tr>`;
+      });
+      
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    // Create charts
+    function createCharts(data) {
+      const threatCounts = countByThreat(data);
+      const dateCounts = groupByDate(data);
+      
+      // Sort dates chronologically
+      const sortedDates = Object.keys(dateCounts).sort();
+      const dateValues = sortedDates.map(date => dateCounts[date]);
+      
+      // Sort threats by count (descending)
+      const sortedThreats = Object.entries(threatCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // Limit to top 10 threats
+      
+      const threatLabels = sortedThreats.map(item => item[0]);
+      const threatValues = sortedThreats.map(item => item[1]);
+      
+      // Create bar chart
+      createBarChart(threatLabels, threatValues);
+      
+      // Create line chart
+      createLineChart(sortedDates, dateValues);
+    }
+
+    // Create bar chart
+    function createBarChart(labels, data) {
+      const ctx = document.getElementById("barChart").getContext("2d");
+      
+      if (barChart) barChart.destroy();
+      
+      barChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Threat Count',
+            data: data,
+            backgroundColor: 'rgba(0, 247, 255, 0.6)',
+            borderColor: 'rgba(0, 247, 255, 1)',
+            borderWidth: 1,
+            hoverBackgroundColor: 'rgba(255, 42, 109, 0.6)'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(0, 247, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(139, 163, 184, 0.8)'
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: 'rgba(139, 163, 184, 0.8)'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(10, 14, 23, 0.9)',
+              titleColor: 'rgba(0, 247, 255, 1)',
+              bodyColor: 'rgba(209, 247, 255, 0.9)',
+              borderColor: 'rgba(0, 247, 255, 0.3)',
+              borderWidth: 1
+            }
+          }
+        }
+      });
+    }
+
+    // Create line chart
+    function createLineChart(labels, data) {
+      const ctx = document.getElementById("lineChart").getContext("2d");
+      
+      if (lineChart) lineChart.destroy();
+      
+      lineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Threats per Day',
+            data: data,
+            backgroundColor: 'rgba(0, 247, 255, 0.1)',
+            borderColor: 'rgba(255, 42, 109, 1)',
+            borderWidth: 2,
+            pointBackgroundColor: 'rgba(0, 247, 255, 1)',
+            pointRadius: 4,
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(0, 247, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(139, 163, 184, 0.8)'
+              }
+            },
+            x: {
+              grid: {
+                color: 'rgba(0, 247, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(139, 163, 184, 0.8)'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(10, 14, 23, 0.9)',
+              titleColor: 'rgba(0, 247, 255, 1)',
+              bodyColor: 'rgba(209, 247, 255, 0.9)',
+              borderColor: 'rgba(0, 247, 255, 0.3)',
+              borderWidth: 1
+            }
+          }
+        }
+      });
+    }
+
+    // Show alert message
+    function showAlert(message) {
+      alertBox.textContent = message;
+      alertBox.style.display = 'block';
+      setTimeout(() => {
+        alertBox.style.display = 'none';
+      }, 5000);
+    }
+
+    // Download report
+    downloadLink.addEventListener('click', () => {
+      if (!currentData) {
+        showAlert("No data available to export");
+        return;
+      }
+      
+      // Create CSV content
+      const headers = Object.keys(currentData[0]);
+      let csvContent = headers.join(",") + "\n";
+      
+      currentData.forEach(row => {
+        csvContent += headers.map(header => row[header] || '').join(",") + "\n";
+      });
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `threat_report_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    // Prediction functionality
+    predictBtn.addEventListener('click', () => {
+      const inputText = document.getElementById('predictionInput').value.trim();
+      if (!inputText) {
+        showAlert("Please enter a request to analyze");
+        return;
+      }
+      
+      // In a real implementation, this would call your ML model
+      // This is a placeholder for the actual prediction logic
+      try {
+        // Simulate API call delay
+        predictBtn.disabled = true;
+        predictionResult.style.display = 'none';
+        
+        setTimeout(() => {
+          // This would be replaced with actual model prediction:
+          // const prediction = model.predict(vectorizer.transform([inputText]))[0];
+          const mockThreats = ['SQL Injection', 'XSS', 'CSRF', 'Path Traversal', 'RCE'];
+          const randomThreat = mockThreats[Math.floor(Math.random() * mockThreats.length)];
+          const confidence = (Math.random() * 0.5 + 0.5).toFixed(2);
+          
+          predictionText.textContent = `Threat Type: ${randomThreat}\nConfidence: ${confidence}`;
+          predictionResult.style.display = 'block';
+          predictBtn.disabled = false;
+        }, 800);
+      } catch (error) {
+        showAlert("Prediction failed: " + error.message);
+        predictBtn.disabled = false;
+      }
+    });
+
+    // Initialize with sample data for demo purposes
+    function initDemo() {
+      const sampleData = [
+        {timestamp: '2023-05-01T10:00:00', threat: 'SQL Injection', source_ip: '192.168.1.1', severity: 'High'},
+        {timestamp: '2023-05-01T11:30:00', threat: 'XSS', source_ip: '192.168.1.15', severity: 'Medium'},
+        {timestamp: '2023-05-02T09:15:00', threat: 'Brute Force', source_ip: '192.168.1.42', severity: 'High'},
+        {timestamp: '2023-05-02T14:20:00', threat: 'SQL Injection', source_ip: '192.168.1.1', severity: 'High'},
+        {timestamp: '2023-05-03T08:45:00', threat: 'Phishing', source_ip: '192.168.1.99', severity: 'Low'},
+        {timestamp: '2023-05-03T16:10:00', threat: 'XSS', source_ip: '192.168.1.15', severity: 'Medium'},
+        {timestamp: '2023-05-04T12:30:00', threat: 'DDoS', source_ip: '192.168.1.77', severity: 'Critical'},
+      ];
+      
+      processData(sampleData);
+      document.querySelector('.prediction-section').style.display = 'block';
+    }
+
+    // Initialize demo on load
+    window.addEventListener('load', initDemo);
+  </script>
+</body>
+</html>
